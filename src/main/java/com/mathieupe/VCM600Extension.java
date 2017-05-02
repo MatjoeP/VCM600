@@ -63,8 +63,8 @@ public class VCM600Extension extends ControllerExtension
          channel.getPan().markInterested();
          channel.getMute().markInterested();
          channel.getSolo().markInterested();
-
-
+         channel.isStopped().markInterested();
+         channel.isQueuedForStop().markInterested();
 
 
          mMainDevices[i] = channel.createCursorDevice(); //"Channel Strip");
@@ -101,9 +101,28 @@ public class VCM600Extension extends ControllerExtension
    @Override
    public void flush()
    {
+      paintButtons();
+   }
+
+   void paintButtons()
+   {
       // TODO Send any updates you need here.
+      for (int i = 0; i < 6; ++i)
+      {
+         for (int j = 0; j < 3; ++j)
+         {
+            RemoteControl parameter = mMainRemoteControlsPages[i].getParameter(4 + j);
+            mMidiOut.sendMidi((MSG_NOTE_ON << 4) + i, 60 + j, parameter.get() > 0 ? 0 : 127);
+         }
 
+         Track channel = mMainTrackBank.getChannel(i);
 
+         SettableBooleanValue mute = channel.getMute();
+         mMidiOut.sendMidi((MSG_NOTE_ON << 4) + i, 63, mute.get() ? 127 : 0);
+         mMidiOut.sendMidi((MSG_NOTE_ON << 4) + i, 64, channel.getSolo().get() ? 127 : 0);
+         mMidiOut.sendMidi((MSG_NOTE_ON << 4) + i, 68, channel.isQueuedForStop().get() ? 127 : 0);
+         mMidiOut.sendMidi((MSG_NOTE_ON << 4) + i, 69, channel.isStopped().get() ? 0 : 127);
+      }
    }
 
 
@@ -157,7 +176,10 @@ public class VCM600Extension extends ControllerExtension
                mApplication.nextSubPanel();
             }
             else if (0 <= channel && channel < 6 && 60 <= data1 && data1 <= 62 && data2 == 127)
-               mMainRemoteControlsPages[channel].getParameter(3 + data1 - 62).set(data2, 128);
+            {
+               RemoteControl parameter = mMainRemoteControlsPages[channel].getParameter(4 + data1 - 60);
+               parameter.set(parameter.get() > 0.5 ? 0 : 127, 128);
+            }
             else if (0 <= channel && channel < 6 && data1 == 67 && data2 == 127)
                mMainTrackBank.getChannel(channel).selectInMixer();
             else if (0 <= channel && channel < 6 && data1 == 68 && data2 == 127)
@@ -170,7 +192,7 @@ public class VCM600Extension extends ControllerExtension
                mMainTrackBank.sceneBank().scrollBackwards();
             else if (channel == 12 && data1 == 89 && data2 == 127)
                mMainTrackBank.sceneBank().scrollForwards();
-            else if (channel == 12 && 78 <= data1 && data1 <= 81 && data2 == 127)
+            else if (channel == 12 && 78 <= data1 && data1 <= 80 && data2 == 127)
                mEffectTrackBank.getItemAt(data1 - 78).getMute().toggle();
             break;
       }
