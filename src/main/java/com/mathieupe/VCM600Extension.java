@@ -12,6 +12,8 @@ public class VCM600Extension extends ControllerExtension
    private static final int MSG_CC = 11;
    private static final int MSG_NOTE_ON = 9;
 
+   private static final double TEMPO_STEP = 0.2;
+
 
    private Transport mTransport;
    private MasterTrack mMasterTrack;
@@ -34,6 +36,10 @@ public class VCM600Extension extends ControllerExtension
       final ControllerHost host = getHost();
 
       mTransport = host.createTransport();
+      mTransport.isArrangerLoopEnabled().markInterested();
+      mTransport.isPunchInEnabled().markInterested();
+      mTransport.isPunchOutEnabled().markInterested();
+
       mApplication = host.createApplication();
       mMasterTrack = host.createMasterTrack(0);
       mCursorTrack = host.createCursorTrack(0, 0);
@@ -161,7 +167,7 @@ public class VCM600Extension extends ControllerExtension
             else if (channel == 12 && 22 <= data1 && data1 <= 23)
                mEffectTrackBank.getChannel(data1 - 22).getVolume().set(data2, 128);
             if (channel == 12 && data1 == 26)
-               mMasterTrack.getVolume().set(data2 > 126 ? 126 : data2, 127);
+               mMasterTrack.getVolume().set(127 - data2, 128);
             break;
 
          case MSG_NOTE_ON:
@@ -194,6 +200,18 @@ public class VCM600Extension extends ControllerExtension
                mMainTrackBank.sceneBank().scrollForwards();
             else if (channel == 12 && 78 <= data1 && data1 <= 80 && data2 == 127)
                mEffectTrackBank.getItemAt(data1 - 78).getMute().toggle();
+            else if (channel == 12 && data1 == 86 && data2 == 127)
+               mTransport.tempo().incRaw(TEMPO_STEP);
+            else if (channel == 12 && data1 == 85 && data2 == 127)
+               mTransport.tempo().incRaw(-TEMPO_STEP);
+            else if (channel == 12 && data1 == 84 && data2 == 127)
+               mTransport.isArrangerLoopEnabled().toggle();
+            else if (channel == 12 && data1 == 83 && data2 == 127)
+               mTransport.isPunchOutEnabled().toggle();
+            else if (channel == 12 && data1 == 82 && data2 == 127)
+               mTransport.isPunchInEnabled().toggle();
+            else if (channel == 12 && data1 == 73 && data2 == 127)
+               mTransport.tapTempo();
             break;
       }
    }
