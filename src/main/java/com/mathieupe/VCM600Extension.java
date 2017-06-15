@@ -262,14 +262,22 @@ public class VCM600Extension extends ControllerExtension
                getRemoteControlsDest().selectedPageIndex().set(2);
             else if (channel == 12 && data1 == 73 && data2 == 127)
                mPageDest = PagesDest.Cursor;
-            else if (channel == 12 && data1 == 74 && data2 == 127)
+            else if (channel == 12 && data1 == 74 && data2 == 127) {
                mPageDest = PagesDest.Effect1;
-            else if (channel == 12 && data1 == 75 && data2 == 127)
+               mEffectTrackBank.getItemAt(0).selectInMixer();
+            }
+            else if (channel == 12 && data1 == 75 && data2 == 127) {
                mPageDest = PagesDest.Effect2;
-            else if (channel == 12 && data1 == 76 && data2 == 127)
+               mEffectTrackBank.getItemAt(1).selectInMixer();
+            }
+            else if (channel == 12 && data1 == 76 && data2 == 127) {
                mPageDest = PagesDest.Effect3;
-            else if (channel == 12 && data1 == 77 && data2 == 127)
+               mEffectTrackBank.getItemAt(2).selectInMixer();
+            }
+            else if (channel == 12 && data1 == 77 && data2 == 127) {
                mPageDest = PagesDest.Master;
+               mMasterTrack.selectInMixer();
+            }
             else if (channel == 12 && data1 == 87 && data2 == 127)
                mMainTrackBank.sceneBank().getItemAt(0).launch();
             else if (channel == 12 && data1 == 90 && data2 == 127)
