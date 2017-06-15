@@ -5,6 +5,15 @@ import com.bitwig.extension.controller.ControllerExtension;
 
 public class VCM600Extension extends ControllerExtension
 {
+   enum PagesDest
+   {
+      Effect1,
+      Effect2,
+      Effect3,
+      Cursor,
+      Master
+   }
+
    private TrackBank mMainTrackBank = null;
    private MidiIn mMidiIn = null;
    private MidiOut mMidiOut = null;
@@ -17,13 +26,19 @@ public class VCM600Extension extends ControllerExtension
 
    private Transport mTransport;
    private MasterTrack mMasterTrack;
+   private CursorDevice mMasterDevice;
+   private CursorRemoteControlsPage mMasterRemoteControlsPage;
    private TrackBank mEffectTrackBank;
    private final CursorDevice[] mMainDevices = new CursorDevice[6];
+   private final CursorDevice[] mEffectDevices = new CursorDevice[3];
    private final CursorRemoteControlsPage[] mMainRemoteControlsPages = new CursorRemoteControlsPage[6];
+   private final CursorRemoteControlsPage[] mEffectRemoteControlsPages = new CursorRemoteControlsPage[3];
    private Application mApplication;
    private CursorTrack mCursorTrack;
    private PinnableCursorDevice mCursorDevice;
    private CursorRemoteControlsPage mCursorRemoteControlsPage;
+
+   private PagesDest mPageDest = PagesDest.Cursor;
 
    protected VCM600Extension(final VCM600ExtensionDefinition definition, final ControllerHost host)
    {
@@ -41,10 +56,18 @@ public class VCM600Extension extends ControllerExtension
       mTransport.isPunchOutEnabled().markInterested();
 
       mApplication = host.createApplication();
+
       mMasterTrack = host.createMasterTrack(0);
+      mMasterDevice = mMasterTrack.createCursorDevice("Master Device");
+      mMasterRemoteControlsPage = mMasterDevice.createCursorRemoteControlsPage(8);
+      for (int i = 0; i < 8; ++i)
+         mMasterRemoteControlsPage.getParameter(i).markInterested();
+      mMasterRemoteControlsPage.selectedPageIndex().markInterested();
+
       mCursorTrack = host.createCursorTrack(0, 0);
       mCursorDevice = mCursorTrack.createCursorDevice();
       mCursorRemoteControlsPage = mCursorDevice.createCursorRemoteControlsPage(8);
+      mCursorRemoteControlsPage.selectedPageIndex().markInterested();
       for (int i = 0; i < 8; ++i)
       {
          RemoteControl parameter = mCursorRemoteControlsPage.getParameter(i);
@@ -72,15 +95,12 @@ public class VCM600Extension extends ControllerExtension
          channel.isStopped().markInterested();
          channel.isQueuedForStop().markInterested();
 
-
-         mMainDevices[i] = channel.createCursorDevice(); //"Channel Strip");
+         mMainDevices[i] = channel.createCursorDevice("Main Track " + (i + 1)); //"Channel Strip");
          mMainRemoteControlsPages[i] = mMainDevices[i].createCursorRemoteControlsPage(8);
-
+         mMainRemoteControlsPages[i].selectedPageIndex().markInterested();
 
          for (int j = 0; j < 8; ++j)
-         {
             mMainRemoteControlsPages[i].getParameter(j).markInterested();
-         }
       }
 
       mEffectTrackBank = host.createEffectTrackBank(3, 1);
@@ -90,6 +110,13 @@ public class VCM600Extension extends ControllerExtension
          track.getPan().markInterested();
          track.getVolume().markInterested();
          track.getMute().markInterested();
+
+         mEffectDevices[i] = track.createCursorDevice("Effect Track " + (i + 1));
+         mEffectRemoteControlsPages[i] = mEffectDevices[i].createCursorRemoteControlsPage(8);
+         mEffectRemoteControlsPages[i].selectedPageIndex().markInterested();
+
+         for (int j = 0; j < 8; ++j)
+            mEffectRemoteControlsPages[i].getParameter(j).markInterested();
       }
 
       // For now just show a popup notification for verification that it is running.
@@ -99,7 +126,6 @@ public class VCM600Extension extends ControllerExtension
    @Override
    public void exit()
    {
-      // TODO: Perform any cleanup once the driver exits
       // For now just show a popup notification for verification that it is no longer running.
       getHost().showPopupNotification("VCM-600 Exited");
    }
@@ -112,7 +138,6 @@ public class VCM600Extension extends ControllerExtension
 
    void paintButtons()
    {
-      // TODO Send any updates you need here.
       for (int i = 0; i < 6; ++i)
       {
          for (int j = 0; j < 3; ++j)
@@ -129,8 +154,45 @@ public class VCM600Extension extends ControllerExtension
          mMidiOut.sendMidi((MSG_NOTE_ON << 4) + i, 68, channel.isQueuedForStop().get() ? 127 : 0);
          mMidiOut.sendMidi((MSG_NOTE_ON << 4) + i, 69, channel.isStopped().get() ? 0 : 127);
       }
+
+      int currentPage = getRemoteControlsDest().selectedPageIndex().get();
+      mMidiOut.sendMidi((MSG_NOTE_ON << 4) + 12, 70, currentPage == 0 ? 127 : 0);
+      mMidiOut.sendMidi((MSG_NOTE_ON << 4) + 12, 71, currentPage == 1 ? 127 : 0);
+      mMidiOut.sendMidi((MSG_NOTE_ON << 4) + 12, 72, currentPage == 2 ? 127 : 0);
+
+      mMidiOut.sendMidi((MSG_NOTE_ON << 4) + 12, 73, mPageDest == PagesDest.Cursor ? 127 : 0);
+      mMidiOut.sendMidi((MSG_NOTE_ON << 4) + 12, 74, mPageDest == PagesDest.Effect1 ? 127 : 0);
+      mMidiOut.sendMidi((MSG_NOTE_ON << 4) + 12, 75, mPageDest == PagesDest.Effect2 ? 127 : 0);
+      mMidiOut.sendMidi((MSG_NOTE_ON << 4) + 12, 76, mPageDest == PagesDest.Effect3 ? 127 : 0);
+      mMidiOut.sendMidi((MSG_NOTE_ON << 4) + 12, 77, mPageDest == PagesDest.Master ? 127 : 0);
+
+      mMidiOut.sendMidi((MSG_NOTE_ON << 4) + 12, 78, mEffectTrackBank.getItemAt(0).getMute().get() ? 127 : 0);
+      mMidiOut.sendMidi((MSG_NOTE_ON << 4) + 12, 79, mEffectTrackBank.getItemAt(1).getMute().get() ? 127 : 0);
+      mMidiOut.sendMidi((MSG_NOTE_ON << 4) + 12, 80, mEffectTrackBank.getItemAt(2).getMute().get() ? 127 : 0);
    }
 
+   private CursorRemoteControlsPage getRemoteControlsDest()
+   {
+      switch (mPageDest)
+      {
+         case Cursor:
+            return mCursorRemoteControlsPage;
+
+         case Master:
+            return mMasterRemoteControlsPage;
+
+         case Effect1:
+            return mEffectRemoteControlsPages[0];
+
+         case Effect2:
+            return mEffectRemoteControlsPages[1];
+
+         case Effect3:
+            return mEffectRemoteControlsPages[2];
+      }
+
+      throw new IllegalStateException("Invalid page dest: " + mPageDest.toString());
+   }
 
    private void onMidiIn(int status, int data1, int data2) {
       int channel = status & 0xF;
@@ -159,7 +221,7 @@ public class VCM600Extension extends ControllerExtension
             else if (0 <= channel && channel < 6 && 22 == data1)
                mMainRemoteControlsPages[channel].getParameter(7).set(data2, 128);
             else if (channel == 12 && 12 <= data1 && data1 <= 19)
-               mCursorRemoteControlsPage.getParameter(data1 - 12).set(data2, 128);
+               getRemoteControlsDest().getParameter(data1 - 12).set(data2, 128);
             else if (channel == 12 && 20 <= data1 && data1 <= 21)
                mEffectTrackBank.getChannel(data1 - 20).getPan().set(data2, 128);
             else if (channel == 12 && data1 == 24)
@@ -192,6 +254,22 @@ public class VCM600Extension extends ControllerExtension
                mMainTrackBank.getChannel(channel).stop();
             else if (0 <= channel && channel < 6 && data1 == 69 && data2 == 127)
                mMainTrackBank.getChannel(channel).clipLauncherSlotBank().launch(0);
+            else if (channel == 12 && data1 == 70 && data2 == 127)
+               getRemoteControlsDest().selectedPageIndex().set(0);
+            else if (channel == 12 && data1 == 71 && data2 == 127)
+               getRemoteControlsDest().selectedPageIndex().set(1);
+            else if (channel == 12 && data1 == 72 && data2 == 127)
+               getRemoteControlsDest().selectedPageIndex().set(2);
+            else if (channel == 12 && data1 == 73 && data2 == 127)
+               mPageDest = PagesDest.Cursor;
+            else if (channel == 12 && data1 == 74 && data2 == 127)
+               mPageDest = PagesDest.Effect1;
+            else if (channel == 12 && data1 == 75 && data2 == 127)
+               mPageDest = PagesDest.Effect2;
+            else if (channel == 12 && data1 == 76 && data2 == 127)
+               mPageDest = PagesDest.Effect3;
+            else if (channel == 12 && data1 == 77 && data2 == 127)
+               mPageDest = PagesDest.Master;
             else if (channel == 12 && data1 == 87 && data2 == 127)
                mMainTrackBank.sceneBank().getItemAt(0).launch();
             else if (channel == 12 && data1 == 90 && data2 == 127)
@@ -210,7 +288,7 @@ public class VCM600Extension extends ControllerExtension
                mTransport.isPunchOutEnabled().toggle();
             else if (channel == 12 && data1 == 82 && data2 == 127)
                mTransport.isPunchInEnabled().toggle();
-            else if (channel == 12 && data1 == 73 && data2 == 127)
+            else if (channel == 12 && data1 == 81 && data2 == 127)
                mTransport.tapTempo();
             break;
       }
