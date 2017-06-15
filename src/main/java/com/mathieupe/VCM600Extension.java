@@ -1,5 +1,6 @@
 package com.mathieupe;
 
+import com.bitwig.extension.callback.BooleanValueChangedCallback;
 import com.bitwig.extension.controller.api.*;
 import com.bitwig.extension.controller.ControllerExtension;
 
@@ -37,6 +38,8 @@ public class VCM600Extension extends ControllerExtension
    private CursorTrack mCursorTrack;
    private PinnableCursorDevice mCursorDevice;
    private CursorRemoteControlsPage mCursorRemoteControlsPage;
+
+   private boolean mAreMainTrackSelected[] = new boolean[] { false, false, false, false, false, false };
 
    private PagesDest mPageDest = PagesDest.Cursor;
 
@@ -95,6 +98,11 @@ public class VCM600Extension extends ControllerExtension
          channel.isStopped().markInterested();
          channel.isQueuedForStop().markInterested();
 
+         final int I = i;
+         channel.addIsSelectedInMixerObserver(isSelected -> {
+            mAreMainTrackSelected[I] = isSelected;
+         });
+
          mMainDevices[i] = channel.createCursorDevice("Main Track " + (i + 1)); //"Channel Strip");
          mMainRemoteControlsPages[i] = mMainDevices[i].createCursorRemoteControlsPage(8);
          mMainRemoteControlsPages[i].selectedPageIndex().markInterested();
@@ -151,6 +159,7 @@ public class VCM600Extension extends ControllerExtension
          SettableBooleanValue mute = channel.getMute();
          mMidiOut.sendMidi((MSG_NOTE_ON << 4) + i, 63, mute.get() ? 127 : 0);
          mMidiOut.sendMidi((MSG_NOTE_ON << 4) + i, 64, channel.getSolo().get() ? 127 : 0);
+         mMidiOut.sendMidi((MSG_NOTE_ON << 4) + i, 67, mAreMainTrackSelected[i] ? 127 : 0);
          mMidiOut.sendMidi((MSG_NOTE_ON << 4) + i, 68, channel.isQueuedForStop().get() ? 127 : 0);
          mMidiOut.sendMidi((MSG_NOTE_ON << 4) + i, 69, channel.isStopped().get() ? 0 : 127);
       }
